@@ -25,19 +25,23 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
   
   fields <- reactive({
     reqTable(input$tableName)
-    pool %>% tbl(input$tableName) %>% select_(paste0("-", input$col)) %>% 
+    pool %>% tbl(input$tableName) %>% select(input$col) %>% 
       head %>% collect %>% lapply(type_sum) %>% unlist
   })
   
   observe({
     reqTable(input$tableName)
-    cols <- db_query_fields(pool, input$tableName)
+    cols <- dbListFields(pool, input$tableName)
     updateSelectInput(session, "col", choices = cols)
   })
   
   observe({
     reqColInTable(input$tableName, input$col)
-    req(db_query_rows(pool, input$tableName) > 0)
+    query <- sqlInterpolate(pool, 
+                            "SELECT COUNT(*) FROM ?table",
+                            .dots = list(table = input$tableName)
+    )
+    req(dbGetQuery(pool, query) > 0)
     
     df <- as_data_frame(pool %>% tbl(input$tableName) %>% select(input$col))
     allUniqueVals <- unique(df[[input$col]])
@@ -48,8 +52,13 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
     reqColInTable(input$tableName, input$col)
     req(input$val)
     
-    filterVar <- sym(input$col)
-    pool %>% tbl(input$tableName) %>% filter(filterVar == input$val)
+    query <- sqlInterpolate(pool, 
+                            "SELECT * FROM ?table WHERE ?col = ?val",
+                            .dots =list(table = input$tableName,
+                                        col = sym(input$col),
+                                        val = input$val)
+    )
+    dbGetQuery(pool, query)
   })
   
   output$fields <- renderUI({
@@ -89,7 +98,7 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
       entryValues[name] <- input[[id]]
     }
     
-    col <- if (input$col %in% db_query_fields(pool, input$tableName)) {
+    col <- if (input$col %in% dbListFields(pool, input$tableName)) {
       input$col
     } else {
        showModal(modalDialog(

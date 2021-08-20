@@ -57,7 +57,7 @@ createEntry <- function(input, output, session, pool, reqTable, goHome) {
       entryValues[name] <- input[[id]]
     }
     
-    db_insert_into(pool, input$tableName, entryValues)
+    dbAppendTable(pool, input$tableName, entryValues)
     goHome()
   })
 }

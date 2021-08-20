@@ -2,9 +2,11 @@
 library(shiny)
 library(shinydashboard)
 library(dplyr)
+library(dbplyr)
 library(tibble)
 library(pool)
 library(rlang)
+library(DBI)
 
 source("modules/overview.R", local = TRUE)
 source("modules/createTable.R", local = TRUE)
@@ -16,7 +18,7 @@ source("modules/delete.R", local = TRUE)
 pool <- dbPool(RSQLite::SQLite(), dbname = "db.sqlite")
 
 tbls <- reactiveFileReader(500, NULL, "db.sqlite",
-  function(x) db_list_tables(pool)
+  function(x) dbListTables(pool)
 )
 
 ui <- dashboardPage(
@@ -49,13 +51,13 @@ server <- function(input, output, session) {
   reqTable <- function(tableName) {
     tbls()
     req(tableName)
-    req(tableName %in% db_list_tables(pool))
+    req(tableName %in% dbListTables(pool))
   }
   
   reqColInTable <- function(tableName, colName) {
     reqTable(tableName)
     req(colName)
-    req(colName %in% db_query_fields(pool, tableName))
+    req(colName %in% dbListFields(pool, tableName))
   }
   
   callModule(overview, "overview-module", pool)

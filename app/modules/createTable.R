@@ -67,7 +67,7 @@ createTable <- function(input, output, session, pool, goHome) {
       return()
     }
     
-    db_create_table(pool, input$tableName, finalCols)
+    dbCreateTable(pool, input$tableName, finalCols)
     goHome()
   })
 }

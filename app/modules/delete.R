@@ -28,9 +28,18 @@ delete <- function(input, output, session, pool, reqTable, reqColInTable, goHome
   
   observe({
     reqColInTable(input$tableName, input$col)
-    req(db_query_rows(pool, input$tableName) > 0)
+    query <- sqlInterpolate(pool, 
+                            "SELECT COUNT(*) FROM ?table",
+                            .dots = list(table = input$tableName)
+    )
+    req(dbGetQuery(pool, query) > 0)
     
-    df <- as_data_frame(pool %>% tbl(input$tableName) %>% select(input$col))
+    sql <- "SELECT ?col FROM ?table"
+    query <- sqlInterpolate(pool, sql, .dots = c(
+      list(table = input$tableName,
+           col = sym(input$col))
+    ))
+    df <- dbGetQuery(pool, query)
     allUniqueVals <- unique(df[[input$col]])
     updateCheckboxGroupInput(session, "vals", choices = allUniqueVals, inline = TRUE)
   })
@@ -40,8 +49,14 @@ delete <- function(input, output, session, pool, reqTable, reqColInTable, goHome
     req(input$col)
     req(input$vals)
     
-    filterVar <- sym(input$col)
-    pool %>% tbl(input$tableName) %>% filter(filterVar %in% input$vals)
+    sql <- "SELECT * FROM ?table WHERE ?col IN (?vals)"
+    vals <- lapply(input$vals, function(x) dbQuoteString(pool, x))
+    query <- sqlInterpolate(pool, sql, .dots = c(
+      list(table = input$tableName,
+           col = sym(input$col),
+           vals = sym(toString(vals)))
+    ))
+    dbGetQuery(pool, query)
   })
   
   observeEvent(input$deleteTable, {
@@ -51,7 +66,7 @@ delete <- function(input, output, session, pool, reqTable, reqColInTable, goHome
   
   observeEvent(input$deleteRows, {
     
-    col <- if (input$col %in% db_query_fields(pool, input$tableName)) {
+    col <- if (input$col %in% dbListFields(pool, input$tableName)) {
       input$col
     } else {
        showModal(modalDialog(
@@ -67,8 +82,7 @@ delete <- function(input, output, session, pool, reqTable, reqColInTable, goHome
     results <- lapply(as_list(input$vals), `%in%`, allUniqueVals)
     
     vals <- if (all(results)) {
-      if (is(df[["count"]], "integer")) input$vals
-      else lapply(input$vals, sql_escape_string, con = pool)
+      input$vals
     } else {
        showModal(modalDialog(
           title = "Invalid column values",
@@ -80,7 +94,7 @@ delete <- function(input, output, session, pool, reqTable, reqColInTable, goHome
     
     sql <- paste0("DELETE FROM ?table WHERE ", col, " IN (",
       paste0(vals, collapse = ", "), ");")
-
+    
     query <- sqlInterpolate(pool, sql, table = input$tableName)
     
     dbExecute(pool, query)

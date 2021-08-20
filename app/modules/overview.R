@@ -14,7 +14,11 @@ overview <- function(input, output, session, pool) {
     for (i in seq_len(length(all_tables))) {
       tblName <- all_tables[[i]]
       fieldNames <- db_query_fields(pool, tblName)
-      nRows <- db_query_rows(pool, tblName)
+      query <- sqlInterpolate(pool, 
+                              "SELECT COUNT(*) FROM ?table",
+                              .dots =list(table = tblName)
+      )
+      nRows <- dbGetQuery(pool, query)
       bullets[[i]] <- tags$li(paste0(
         all_tables[[i]], ": ", nRows, " rows. Field names: ", 
         paste(fieldNames, collapse = ", "), "."
